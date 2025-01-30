@@ -1,0 +1,5 @@
+{
+    "version": "1.0.0",
+    "changes": "- Version initiale\n- Interface moderne\n- Horodatage avec certificats RFC3161\n- Support blockchain",
+    "download_url": "https://github.com/votre-repo/Horodatage/releases/download/v1.0.0/Horodatage.exe"
+}
