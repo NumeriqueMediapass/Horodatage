@@ -1,15 +1,15 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from datetime import datetime
 import os
-import webbrowser
 import shutil
+from datetime import datetime
 import json
 from timestamper import TimeStamper
 from PIL import Image, ImageTk
 from theme import ModernTheme
 from updater import Updater
-
+import sys
+import webbrowser
 
 class HorodatageApp:
     VERSION = "1.0.0"
@@ -20,8 +20,14 @@ class HorodatageApp:
         self.root.title(f"Horodatage de Documents v{self.VERSION}")
         self.root.state('zoomed')
         
+        # Obtenir le chemin de base (fonctionne avec PyInstaller)
+        if getattr(sys, 'frozen', False):
+            self.base_path = sys._MEIPASS
+        else:
+            self.base_path = os.path.dirname(os.path.abspath(__file__))
+            
         # Configuration de l'icône
-        icon_path = os.path.join("assets", "icon.ico")
+        icon_path = os.path.join(self.base_path, "assets", "icon.ico")
         if os.path.exists(icon_path):
             self.root.iconbitmap(icon_path)
             try:
@@ -84,19 +90,15 @@ class HorodatageApp:
         header_content.pack(fill="x", padx=10, pady=10)
 
         # Colonne gauche : Logo
-        logo_frame = ttk.Frame(header_content, style="Card.TFrame")
-        logo_frame.pack(side="left", padx=(0, 20))
-
-        logo_path = os.path.join("assets", "Logo_S-A.png")
+        logo_path = os.path.join(self.base_path, "assets", "Logo_S-A.png")
         if os.path.exists(logo_path):
-            logo_image = Image.open(logo_path)
-            logo_width = 150
-            ratio = logo_width / logo_image.width
-            logo_height = int(logo_image.height * ratio)
-            logo_image = logo_image.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
-            self.logo_photo = ImageTk.PhotoImage(logo_image)
-            logo_label = tk.Label(logo_frame, image=self.logo_photo, bg=ModernTheme.CARD_BG)
-            logo_label.pack()
+            logo_frame, logo_label = ModernTheme.create_logo_frame(header_content, logo_path)
+            if logo_frame:
+                logo_frame.pack(side="left", padx=(0, 20))
+                if logo_label:
+                    logo_label.bind("<Button-1>", self.open_website)
+                    tooltip = "Cliquez pour visiter le site de la CC Sud-Avesnois"
+                    ModernTheme.create_tooltip(logo_label, tooltip)
 
         # Colonne droite : Statistiques
         stats_frame = ttk.Frame(header_content, style="Card.TFrame")
@@ -570,9 +572,10 @@ class HorodatageApp:
         except Exception as e:
             raise Exception(f"Erreur lors de la vérification blockchain: {str(e)}")
 
-    def open_website(self):
-        webbrowser.open(self.WEBSITE)
-        
+    def open_website(self, event=None):
+        """Ouvre le site web de la CC Sud-Avesnois"""
+        webbrowser.open("https://cc-sudavesnois.fr")
+
     def show_about(self):
         about_text = f"""Horodatage de Documents v{self.VERSION}
 

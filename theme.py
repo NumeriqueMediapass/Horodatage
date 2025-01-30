@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk
 
 class ModernTheme:
     # Couleurs principales
@@ -18,6 +19,7 @@ class ModernTheme:
     TEXT = "#FFFFFF"        # Texte principal (blanc)
     TEXT_SECONDARY = "#A1A1AA"  # Texte secondaire (gris clair)
     TEXT_HOVER = "#000000"  # Texte noir pour le hover
+    HOVER_COLOR = "#333333"  # Couleur de fond pour le survol
     
     # Mapping des couleurs pour le hover
     HOVER_COLORS = {
@@ -173,3 +175,71 @@ class ModernTheme:
             subtitle_label.pack(anchor="w")
         
         return frame
+
+    @classmethod
+    def create_logo_frame(cls, parent, logo_path, width=150):
+        """Crée un cadre avec logo redimensionné"""
+        frame = ttk.Frame(parent, style="Card.TFrame")
+        
+        try:
+            # Charger et redimensionner le logo
+            logo_image = Image.open(logo_path)
+            ratio = width / logo_image.width
+            height = int(logo_image.height * ratio)
+            logo_image = logo_image.resize((width, height), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(logo_image)
+            
+            # Créer le label avec le logo
+            label = tk.Label(
+                frame,
+                image=photo,
+                bg=cls.CARD_BG,
+                cursor="hand2"  # Curseur main au survol
+            )
+            label.image = photo  # Garder une référence
+            label.pack(padx=10, pady=10)
+            
+            # Ajouter un effet de survol
+            def on_enter(e):
+                label.configure(bg=cls.HOVER_COLOR)
+            def on_leave(e):
+                label.configure(bg=cls.CARD_BG)
+                
+            label.bind("<Enter>", on_enter)
+            label.bind("<Leave>", on_leave)
+            
+            return frame, label
+            
+        except Exception as e:
+            print(f"Erreur lors du chargement du logo : {str(e)}")
+            return frame, None
+
+    @staticmethod
+    def create_tooltip(widget, text):
+        """Crée une infobulle pour un widget"""
+        def enter(event):
+            tooltip = tk.Toplevel()
+            tooltip.wm_overrideredirect(True)
+            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
+            
+            # Style de l'infobulle
+            label = tk.Label(
+                tooltip,
+                text=text,
+                justify='left',
+                background="#2A2A2A",
+                foreground="#FFFFFF",
+                relief='solid',
+                borderwidth=1,
+                font=("Segoe UI", 9)
+            )
+            label.pack()
+            
+            widget.tooltip = tooltip
+            
+        def leave(event):
+            if hasattr(widget, "tooltip"):
+                widget.tooltip.destroy()
+                
+        widget.bind('<Enter>', enter)
+        widget.bind('<Leave>', leave)

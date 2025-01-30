@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -20,38 +21,48 @@ wheels/
 .installed.cfg
 *.egg
 
-# Distribution / packaging
-*.exe
+# PyInstaller
+*.manifest
 *.spec
+build/
+dist/
 
-# Environnement virtuel
-venv/
-env/
-ENV/
-
-# IDE
+# Dossiers de développement
 .idea/
 .vscode/
 *.swp
-*.swo
+.env
+.venv
+venv/
+ENV/
 
-# Logs et bases de données
-*.log
-*.sqlite
-*.db
-
-# Dossiers de stockage générés
-Horodatage/str/
-Horodatage/blockchain/
-
-# Fichiers temporaires
-*.tmp
-*.temp
-*.tsr
-*.blockchain
-
-# Windows
+# Fichiers Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+*.lnk
+
+# Fichiers de release
+release-*/
+*.zip
+*.exe
+
+# Fichiers de certificats et clés
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# Fichiers temporaires
+*.tmp
+*.bak
+*.swp
+*.tsr
+*~
+
+# Logs
+*.log
+logs/
