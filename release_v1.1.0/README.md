@@ -92,4 +92,4 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 ## Licence
 
-Ce projet est sous licence [insérer licence]
+A venir

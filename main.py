@@ -27,7 +27,6 @@ from theme import ModernTheme
 from updater import Updater
 from preview import DocumentPreview
 from cloud_sync import CloudSync
-from tutorial import TutorialManager
 
 class HorodatageApp:
     """Interface principale de l'application d'horodatage."""
@@ -74,7 +73,6 @@ class HorodatageApp:
 
         # Initialisation des nouveaux modules
         self.cloud_sync = CloudSync()
-        self.tutorial_manager = TutorialManager(root)
         
         # Configuration de l'interface
         self.setup_ui()
@@ -82,10 +80,6 @@ class HorodatageApp:
         # Vérifier les mises à jour
         self.check_updates()
         
-        # Démarrer le tutoriel de base si première utilisation
-        if not os.path.exists(os.path.join(self.storage_path, ".tutorial_done")):
-            self.tutorial_manager.start_tutorial("basics")
-            
         # Initialisation du TimeStamper
         self.timestamper = TimeStamper()
 
@@ -763,11 +757,12 @@ class HorodatageApp:
         """Vérifie si des mises à jour sont disponibles."""
         try:
             updater = Updater()
-            if updater.check_for_updates():
+            update_info = updater.check_for_updates()
+            if update_info and update_info['update_available']:
                 if messagebox.askyesno(
                     "Mise à jour disponible",
                     "Une nouvelle version est disponible. Voulez-vous la télécharger ?"):
-                    updater.download_update()
+                    updater.download_update(update_info['download_url'])
         except Exception as e:
             print(f"Erreur lors de la vérification des mises à jour : {e}")
 

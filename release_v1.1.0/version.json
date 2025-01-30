@@ -1,16 +1,25 @@
 {
     "version": "1.1.0",
     "release_date": "2025-01-30",
-    "changes": [
-        "✨ Amélioration de l'interface utilisateur",
-        "🖼️ Logo interactif avec effets de survol",
-        "🔗 Logo cliquable vers le site web",
-        "💡 Infobulles informatives",
-        "📊 Correction de l'affichage des statistiques",
-        "🔄 Système de mise à jour automatique",
-        "🎨 Nouveau thème moderne et cohérent"
-    ],
     "download_url": "https://github.com/NumeriqueMediapass/Horodatage/releases/download/v1.1.0/Horodatage.exe",
-    "min_version": "1.0.0",
-    "required": false
+    "sha256": "60968fb91bbc059f9bcbce8e1c163b532334b377375bbda02dd611f4715b74a1",
+    "changes": {
+        "features": [
+            "Prévisualisation des documents PDF et images",
+            "Synchronisation cloud avec OneDrive et Google Drive",
+            "Interface utilisateur améliorée"
+        ],
+        "fixes": [
+            "Correction des problèmes de mise à jour automatique",
+            "Amélioration de la stabilité générale"
+        ],
+        "required": false,
+        "min_version": "1.0.0"
+    },
+    "requirements": {
+        "windows": "10",
+        "python": "3.10",
+        "memory": "4GB",
+        "disk": "100MB"
+    }
 }
