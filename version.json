@@ -1,5 +1,18 @@
 {
-    "version": "1.0.0",
-    "changes": "- Version initiale\n- Interface moderne\n- Horodatage avec certificats RFC3161\n- Support blockchain",
-    "download_url": "https://github.com/votre-repo/Horodatage/releases/download/v1.0.0/Horodatage.exe"
+    "version": "1.1.0",
+    "changes": [
+        "✨ Amélioration de l'interface utilisateur",
+        "🖼️ Logo interactif avec effets de survol",
+        "🔗 Logo cliquable vers le site web",
+        "💡 Infobulles informatives",
+        "📊 Correction de l'affichage des statistiques",
+        "🔄 Système de mise à jour automatique",
+        "🎨 Nouveau thème moderne et cohérent",
+        "🛠️ Amélioration de la gestion des ressources",
+        "🐛 Correction des bugs d'affichage"
+    ],
+    "download_url": "https://github.com/votre-username/Horodatage/releases/download/v1.1.0/Horodatage.exe",
+    "min_windows_version": "10.0",
+    "min_ram_mb": 4096,
+    "min_disk_space_mb": 100
 }
