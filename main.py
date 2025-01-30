@@ -1,39 +1,70 @@
+"""
+Application d'horodatage de documents avec certification RFC3161 et blockchain.
+
+Cette application permet de :
+1. Horodater des documents avec certification RFC3161
+2. Stocker des preuves sur la blockchain Ethereum
+3. Vérifier l'authenticité des documents horodatés
+4. Suivre les statistiques d'utilisation
+5. Mettre à jour automatiquement l'application
+
+Développé pour la CC Sud-Avesnois
+"""
+
+# Bibliothèques standard
+import os
+import sys
+import json
+from datetime import datetime
+
+# Interface graphique
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import os
-import shutil
-from datetime import datetime
-import json
+
+# Modules de l'application
 from timestamper import TimeStamper
-from PIL import Image, ImageTk
 from theme import ModernTheme
 from updater import Updater
-import sys
-import webbrowser
+from preview import DocumentPreview
+from cloud_sync import CloudSync
+from tutorial import TutorialManager
 
 class HorodatageApp:
-    VERSION = "1.0.0"
+    """Interface principale de l'application d'horodatage."""
+
+    VERSION = "1.1.0"
     WEBSITE = "https://cc-sudavesnois.fr"
-    
+
     def __init__(self, root):
+        """Initialise l'application avec sa fenêtre principale.
+
+        Args:
+            root: La fenêtre principale Tkinter
+        """
         self.root = root
         self.root.title(f"Horodatage de Documents v{self.VERSION}")
         self.root.state('zoomed')
-        
+
         # Obtenir le chemin de base (fonctionne avec PyInstaller)
         if getattr(sys, 'frozen', False):
             self.base_path = sys._MEIPASS
         else:
             self.base_path = os.path.dirname(os.path.abspath(__file__))
-            
+
+        # Dossier de stockage par défaut
+        self.storage_path = os.path.join(self.base_path, "Horodatage")
+        if not os.path.exists(self.storage_path):
+            os.makedirs(self.storage_path)
+
         # Configuration de l'icône
         icon_path = os.path.join(self.base_path, "assets", "icon.ico")
         if os.path.exists(icon_path):
             self.root.iconbitmap(icon_path)
             try:
                 import ctypes
-                myappid = f'ccsudavesnois.horodatage.v{self.VERSION}'
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                app_id = f'ccsudavesnois.horodatage.v{self.VERSION}'
+                ctypes.windll.shell32.\
+                    SetCurrentProcessExplicitAppUserModelID(app_id)
             except Exception:
                 pass
 
@@ -41,9 +72,20 @@ class HorodatageApp:
         self.root.configure(bg=ModernTheme.BACKGROUND)
         ModernTheme.setup_theme()
 
-        # Création du menu
-        self.create_menu()
-
+        # Initialisation des nouveaux modules
+        self.cloud_sync = CloudSync()
+        self.tutorial_manager = TutorialManager(root)
+        
+        # Configuration de l'interface
+        self.setup_ui()
+        
+        # Vérifier les mises à jour
+        self.check_updates()
+        
+        # Démarrer le tutoriel de base si première utilisation
+        if not os.path.exists(os.path.join(self.storage_path, ".tutorial_done")):
+            self.tutorial_manager.start_tutorial("basics")
+            
         # Initialisation du TimeStamper
         self.timestamper = TimeStamper()
 
@@ -51,12 +93,7 @@ class HorodatageApp:
         self.document_path = None
         self.cert_path = None
         self.selected_files = []
-        
-        # Dossier de stockage par défaut
-        self.storage_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Horodatage")
-        if not os.path.exists(self.storage_path):
-            os.makedirs(self.storage_path)
-        
+
         # Initialiser les statistiques
         self.stats = {
             'files_processed': 0,
@@ -65,235 +102,132 @@ class HorodatageApp:
             'verifications_done': 0
         }
 
-        # Création des widgets
-        self.create_widgets()
+    def setup_ui(self):
+        """Configure l'interface utilisateur."""
+        # Création du menu
+        self.create_menu()
         
-        # Vérifier les mises à jour
-        self.check_updates()
+        # Création des onglets
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(expand=True, fill='both', padx=10, pady=5)
         
-    def check_updates(self):
-        """Vérifie si une mise à jour est disponible"""
-        updater = Updater()
-        self.root.after(1000, updater.propose_update)  # Vérifier après 1 seconde
-
-    def create_widgets(self):
-        # Frame principale avec padding
-        main_frame = ttk.Frame(self.root, style="Modern.TFrame", padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # En-tête avec logo et titre
-        header_frame = ModernTheme.create_card_frame(main_frame)
-        header_frame.pack(fill="x", pady=(0, 20))
-
-        # Layout en deux colonnes pour l'en-tête
-        header_content = ttk.Frame(header_frame, style="Card.TFrame")
-        header_content.pack(fill="x", padx=10, pady=10)
-
-        # Colonne gauche : Logo
-        logo_path = os.path.join(self.base_path, "assets", "Logo_S-A.png")
-        if os.path.exists(logo_path):
-            logo_frame, logo_label = ModernTheme.create_logo_frame(header_content, logo_path)
-            if logo_frame:
-                logo_frame.pack(side="left", padx=(0, 20))
-                if logo_label:
-                    logo_label.bind("<Button-1>", self.open_website)
-                    tooltip = "Cliquez pour visiter le site de la CC Sud-Avesnois"
-                    ModernTheme.create_tooltip(logo_label, tooltip)
-
-        # Colonne droite : Statistiques
-        stats_frame = ttk.Frame(header_content, style="Card.TFrame")
-        stats_frame.pack(side="right", fill="x", expand=True)
-
-        # Ligne de statistiques
-        self.stats_row = ttk.Frame(stats_frame, style="Card.TFrame")
-        self.stats_row.pack(fill="x", pady=10)
-
-        # Création des widgets de statistiques
-        stats_data = [
-            ("Fichiers traités", self.stats['files_processed']),
-            ("Certificats créés", self.stats['certificates_created']),
-            ("Preuves blockchain", self.stats['blockchain_proofs']),
-            ("Vérifications", self.stats['verifications_done'])
-        ]
-
-        for title, value in stats_data:
-            stat_widget = ModernTheme.create_stats_frame(
-                self.stats_row,
-                title,
-                value
-            )
-            stat_widget.pack(side="left", fill="x", expand=True, padx=5)
-
-        # Création du notebook (système d'onglets)
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
-
-        # Onglets
-        self.timestamp_tab = ttk.Frame(self.notebook, style="Modern.TFrame")
-        self.verify_tab = ttk.Frame(self.notebook, style="Modern.TFrame")
-        
-        self.notebook.add(self.timestamp_tab, text=" Horodater un fichier")
-        self.notebook.add(self.verify_tab, text=" Vérifier un document")
-
+        # Onglet Horodatage
+        self.timestamp_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.timestamp_tab, text="Horodatage")
         self.create_timestamp_tab()
+        
+        # Onglet Vérification
+        self.verify_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.verify_tab, text="Vérification")
         self.create_verify_tab()
-
+        
+        # Onglet Cloud
+        self.cloud_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.cloud_tab, text="Cloud")
+        self.create_cloud_tab()
+        
     def create_timestamp_tab(self):
-        # Frame principale de l'onglet
-        main_frame = ttk.Frame(self.timestamp_tab, style="Modern.TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        # Colonne gauche (70% de la largeur)
-        left_frame = ttk.Frame(main_frame, style="Modern.TFrame")
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
-
-        # Zone de dépôt de fichiers
-        dropzone = ModernTheme.create_card_frame(left_frame)
-        dropzone.pack(fill="both", expand=True)
-
-        dropzone_label = ttk.Label(
-            dropzone,
-            text=" Déposez vos fichiers ici ou",
-            style="Modern.TLabel",
-            font=("Segoe UI", 14)
+        """Crée l'interface de l'onglet Horodatage."""
+        # Frame principale avec deux colonnes
+        main_frame = ttk.Frame(self.timestamp_tab)
+        main_frame.pack(expand=True, fill='both', padx=10, pady=5)
+        
+        # Colonne gauche : sélection et options
+        left_frame = ttk.Frame(main_frame)
+        left_frame.pack(side='left', fill='both', expand=True)
+        
+        # Zone de sélection des fichiers
+        files_frame = ttk.LabelFrame(
+            left_frame,
+            text="Fichiers à horodater"
         )
-        dropzone_label.pack(pady=(20, 10))
-
-        select_button = ModernTheme.create_rounded_button(
-            dropzone,
-            " Sélectionner des fichiers",
-            self.select_files,
-            "SUCCESS"
-        )
-        select_button.pack(pady=(0, 20))
-
+        files_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        
         # Liste des fichiers
         self.files_text = tk.Text(
-            dropzone,
+            files_frame,
             height=10,
-            wrap=tk.WORD,
-            font=("Segoe UI", 10),
-            bg=ModernTheme.CARD_BG,
-            fg=ModernTheme.TEXT,
-            relief="flat"
+            wrap='none'
         )
-        self.files_text.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-
-        # Colonne droite (30% de la largeur)
-        right_frame = ttk.Frame(main_frame, style="Modern.TFrame")
-        right_frame.pack(side="right", fill="both", padx=(10, 0))
-        right_frame_inner = ttk.Frame(right_frame, style="Modern.TFrame", width=300)
-        right_frame_inner.pack(fill="both", expand=True)
-        right_frame_inner.pack_propagate(False)  # Empêche la frame de se redimensionner
-
+        self.files_text.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # Boutons
+        buttons_frame = ttk.Frame(files_frame)
+        buttons_frame.pack(fill='x', padx=5, pady=5)
+        
+        ttk.Button(
+            buttons_frame,
+            text="Sélectionner des fichiers",
+            command=self.select_files,
+            name='select_files_button'
+        ).pack(side='left', padx=5)
+        
         # Options d'horodatage
-        options_frame = ModernTheme.create_card_frame(right_frame_inner)
-        options_frame.pack(fill="x", pady=(0, 20))
-
-        options_title = ttk.Label(
-            options_frame,
-            text=" Options d'horodatage",
-            style="Modern.TLabel",
-            font=("Segoe UI", 12, "bold")
+        options_frame = ttk.LabelFrame(
+            left_frame,
+            text="Options d'horodatage",
+            name='options_frame'
         )
-        options_title.pack(anchor="w", pady=(0, 10))
-
-        # Dossier de stockage
-        storage_frame = ttk.Frame(options_frame, style="Card.TFrame")
-        storage_frame.pack(fill="x", pady=(0, 10))
-
-        storage_label = ttk.Label(
-            storage_frame,
-            text=" Dossier de stockage :",
-            style="Modern.TLabel"
-        )
-        storage_label.pack(anchor="w")
-
-        storage_path_frame = ttk.Frame(storage_frame, style="Card.TFrame")
-        storage_path_frame.pack(fill="x", pady=(5, 0))
-
-        self.storage_label = ttk.Label(
-            storage_path_frame,
-            text=self.storage_path,
-            style="Modern.TLabel",
-            wraplength=180  # Réduit pour laisser plus de place au bouton
-        )
-        self.storage_label.pack(side="left", fill="x", expand=True)
-
-        # Bouton de sélection du dossier
-        storage_button = ModernTheme.create_rounded_button(
-            storage_path_frame,
-            "Parcourir",
-            self.select_storage_path,
-            "PRIMARY",
-            icon="📂"
-        )
-        storage_button.pack(side="right", padx=(5, 0))
-
-        ttk.Separator(options_frame, orient="horizontal").pack(fill="x", pady=10)
-
-        # Options
-        self.rename_var = tk.BooleanVar(value=True)
+        options_frame.pack(fill='x', padx=5, pady=5)
+        
         self.rfc3161_var = tk.BooleanVar(value=True)
-        self.blockchain_var = tk.BooleanVar(value=False)
-
-        options = [
-            (self.rename_var, " Renommer les fichiers avec horodatage"),
-            (self.rfc3161_var, " Certificat d'horodatage RFC3161"),
-            (self.blockchain_var, " Stockage blockchain")
-        ]
-
-        for var, text in options:
-            ttk.Checkbutton(
-                options_frame,
-                text=text,
-                variable=var,
-                style="Modern.TCheckbutton"
-            ).pack(anchor="w", pady=5)
-
+        ttk.Checkbutton(
+            options_frame,
+            text="Certification RFC3161",
+            variable=self.rfc3161_var
+        ).pack(padx=5, pady=2)
+        
+        self.blockchain_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            options_frame,
+            text="Preuve Blockchain",
+            variable=self.blockchain_var
+        ).pack(padx=5, pady=2)
+        
         # Bouton d'horodatage
-        self.timestamp_button = ModernTheme.create_rounded_button(
-            right_frame_inner,
-            "🕒 Horodater les fichiers",
-            self.timestamp_files,
-            "PRIMARY"
+        ttk.Button(
+            left_frame,
+            text="Horodater les fichiers",
+            command=self.timestamp_files,
+            style='Accent.TButton',
+            name='timestamp_button'
+        ).pack(fill='x', padx=5, pady=10)
+        
+        # Colonne droite : prévisualisation
+        right_frame = ttk.LabelFrame(
+            main_frame,
+            text="Prévisualisation",
+            name='preview_frame'
         )
-        self.timestamp_button.pack(fill="x", pady=20)
-
-        # Journal des opérations
-        log_frame = ModernTheme.create_card_frame(right_frame_inner)
-        log_frame.pack(fill="both", expand=True)
-
-        log_title = ttk.Label(
-            log_frame,
-            text=" Journal des opérations",
-            style="Modern.TLabel",
-            font=("Segoe UI", 12, "bold")
-        )
-        log_title.pack(anchor="w", pady=(0, 10))
-
+        right_frame.pack(side='right', fill='both', expand=True, padx=5)
+        
+        # Widget de prévisualisation
+        self.preview = DocumentPreview(right_frame)
+        self.preview.pack(expand=True, fill='both', padx=5, pady=5)
+        
+        # Journal en bas
+        log_frame = ttk.LabelFrame(self.timestamp_tab, text="Journal")
+        log_frame.pack(fill='x', padx=10, pady=5)
+        
         self.log_text = tk.Text(
             log_frame,
-            height=8,
-            wrap=tk.WORD,
-            font=("Segoe UI", 9),
-            bg=ModernTheme.CARD_BG,
-            fg=ModernTheme.TEXT,
-            relief="flat"
+            height=5,
+            wrap='word'
         )
-        self.log_text.pack(fill="both", expand=True)
-
+        self.log_text.pack(fill='both', expand=True, padx=5, pady=5)
+        
     def create_verify_tab(self):
+        """Crée l'interface de l'onglet Vérification."""
         # Frame principale de l'onglet
-        main_frame = ttk.Frame(self.verify_tab, style="Modern.TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        main_frame = ttk.Frame(
+            self.verify_tab,
+            style="Modern.TFrame",
+            padding=20
+        )
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Colonne gauche (70%)
-        left_frame = ttk.Frame(main_frame, style="Modern.TFrame")
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
-
-        # Section document
-        doc_frame = ModernTheme.create_card_frame(left_frame)
+        # Zone de sélection du document
+        doc_frame = ModernTheme.create_card_frame(main_frame)
         doc_frame.pack(fill="x", pady=(0, 20))
 
         doc_title = ttk.Label(
@@ -302,74 +236,65 @@ class HorodatageApp:
             style="Modern.TLabel",
             font=("Segoe UI", 12, "bold")
         )
-        doc_title.pack(anchor="w", pady=(0, 10))
+        doc_title.pack(anchor="w", padx=10, pady=10)
 
-        doc_content = ttk.Frame(doc_frame, style="Card.TFrame")
-        doc_content.pack(fill="x", pady=(0, 10))
+        # Bouton de sélection du document
+        select_doc_btn = ttk.Button(
+            doc_frame,
+            text="Sélectionner le document",
+            command=self.select_document,
+            style="Accent.TButton"
+        )
+        select_doc_btn.pack(side="left", padx=10, pady=(0, 10))
 
+        # Label pour le nom du document
         self.doc_label = ttk.Label(
-            doc_content,
+            doc_frame,
             text="Aucun document sélectionné",
             style="Modern.TLabel"
         )
-        self.doc_label.pack(side="left", fill="x", expand=True)
+        self.doc_label.pack(side="left", padx=10, pady=(0, 10))
 
-        select_doc_button = ModernTheme.create_rounded_button(
-            doc_content,
-            " Sélectionner",
-            self.select_document,
-            "SUCCESS"
-        )
-        select_doc_button.pack(side="right", padx=5)
-
-        # Section certificat
-        cert_frame = ModernTheme.create_card_frame(left_frame)
-        cert_frame.pack(fill="x")
+        # Zone de sélection du certificat
+        cert_frame = ModernTheme.create_card_frame(main_frame)
+        cert_frame.pack(fill="x", pady=(0, 20))
 
         cert_title = ttk.Label(
             cert_frame,
-            text=" Certificat ou Preuve",
+            text=" Certificat ou preuve",
             style="Modern.TLabel",
             font=("Segoe UI", 12, "bold")
         )
-        cert_title.pack(anchor="w", pady=(0, 10))
+        cert_title.pack(anchor="w", padx=10, pady=10)
 
-        cert_content = ttk.Frame(cert_frame, style="Card.TFrame")
-        cert_content.pack(fill="x", pady=(0, 10))
+        # Bouton de sélection du certificat
+        select_cert_btn = ttk.Button(
+            cert_frame,
+            text="Sélectionner le certificat",
+            command=self.select_certificate,
+            style="Accent.TButton"
+        )
+        select_cert_btn.pack(side="left", padx=10, pady=(0, 10))
 
+        # Label pour le nom du certificat
         self.cert_label = ttk.Label(
-            cert_content,
+            cert_frame,
             text="Aucun certificat sélectionné",
             style="Modern.TLabel"
         )
-        self.cert_label.pack(side="left", fill="x", expand=True)
-
-        select_cert_button = ModernTheme.create_rounded_button(
-            cert_content,
-            " Sélectionner",
-            self.select_certificate,
-            "INFO"
-        )
-        select_cert_button.pack(side="right", padx=5)
-
-        # Colonne droite (30%)
-        right_frame = ttk.Frame(main_frame, style="Modern.TFrame")
-        right_frame.pack(side="right", fill="both", padx=(10, 0))
-        right_frame_inner = ttk.Frame(right_frame, style="Modern.TFrame", width=300)
-        right_frame_inner.pack(fill="both", expand=True)
-        right_frame_inner.pack_propagate(False)  # Empêche la frame de se redimensionner
+        self.cert_label.pack(side="left", padx=10, pady=(0, 10))
 
         # Bouton de vérification
-        verify_button = ModernTheme.create_rounded_button(
-            right_frame_inner,
-            "✓ Vérifier l'authenticité",
-            self.verify_document,
-            "PRIMARY"
+        verify_btn = ttk.Button(
+            main_frame,
+            text="Vérifier le document",
+            command=self.verify_document,
+            style="Accent.TButton"
         )
-        verify_button.pack(fill="x", pady=(0, 20))
+        verify_btn.pack(anchor="center", pady=20)
 
-        # Résultats
-        result_frame = ModernTheme.create_card_frame(right_frame_inner)
+        # Zone de résultats
+        result_frame = ModernTheme.create_card_frame(main_frame)
         result_frame.pack(fill="both", expand=True)
 
         result_title = ttk.Label(
@@ -378,76 +303,250 @@ class HorodatageApp:
             style="Modern.TLabel",
             font=("Segoe UI", 12, "bold")
         )
-        result_title.pack(anchor="w", pady=(0, 10))
+        result_title.pack(anchor="w", padx=10, pady=10)
 
+        # Zone de texte pour les résultats
         self.result_text = tk.Text(
             result_frame,
-            wrap=tk.WORD,
-            font=("Segoe UI", 9),
+            height=10,
             bg=ModernTheme.CARD_BG,
             fg=ModernTheme.TEXT,
-            relief="flat"
+            font=("Consolas", 10)
         )
-        self.result_text.pack(fill="both", expand=True)
+        self.result_text.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=(0, 10)
+        )
 
-    def create_menu(self):
-        menubar = tk.Menu(self.root)
-        self.root.config(menu=menubar)
+    def create_cloud_tab(self):
+        """Crée l'interface de l'onglet Cloud."""
+        # Frame principale
+        main_frame = ttk.Frame(self.cloud_tab)
+        main_frame.pack(expand=True, fill='both', padx=10, pady=5)
         
-        # Menu Aide
-        help_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Aide", menu=help_menu)
-        help_menu.add_command(label="Site Web", command=self.open_website)
-        help_menu.add_separator()
-        help_menu.add_command(label="À propos", command=self.show_about)
-
+        # OneDrive
+        onedrive_frame = ttk.LabelFrame(
+            main_frame,
+            text="Microsoft OneDrive",
+            name='onedrive_frame'
+        )
+        onedrive_frame.pack(fill='x', padx=5, pady=5)
+        
+        ttk.Label(
+            onedrive_frame,
+            text="Client ID:"
+        ).pack(padx=5, pady=2)
+        
+        self.onedrive_id = ttk.Entry(onedrive_frame)
+        self.onedrive_id.pack(fill='x', padx=5, pady=2)
+        
+        ttk.Label(
+            onedrive_frame,
+            text="Client Secret:"
+        ).pack(padx=5, pady=2)
+        
+        self.onedrive_secret = ttk.Entry(
+            onedrive_frame,
+            show='*'
+        )
+        self.onedrive_secret.pack(fill='x', padx=5, pady=2)
+        
+        ttk.Button(
+            onedrive_frame,
+            text="Configurer OneDrive",
+            command=self.setup_onedrive
+        ).pack(padx=5, pady=5)
+        
+        # Google Drive
+        gdrive_frame = ttk.LabelFrame(
+            main_frame,
+            text="Google Drive",
+            name='gdrive_frame'
+        )
+        gdrive_frame.pack(fill='x', padx=5, pady=5)
+        
+        ttk.Label(
+            gdrive_frame,
+            text="Client ID:"
+        ).pack(padx=5, pady=2)
+        
+        self.gdrive_id = ttk.Entry(gdrive_frame)
+        self.gdrive_id.pack(fill='x', padx=5, pady=2)
+        
+        ttk.Label(
+            gdrive_frame,
+            text="Client Secret:"
+        ).pack(padx=5, pady=2)
+        
+        self.gdrive_secret = ttk.Entry(
+            gdrive_frame,
+            show='*'
+        )
+        self.gdrive_secret.pack(fill='x', padx=5, pady=2)
+        
+        ttk.Button(
+            gdrive_frame,
+            text="Configurer Google Drive",
+            command=self.setup_gdrive
+        ).pack(padx=5, pady=5)
+        
+        # Options de synchronisation
+        sync_frame = ttk.LabelFrame(
+            main_frame,
+            text="Options de synchronisation",
+            name='sync_options'
+        )
+        sync_frame.pack(fill='x', padx=5, pady=5)
+        
+        self.auto_sync_var = tk.BooleanVar(
+            value=self.cloud_sync.config['auto_sync']
+        )
+        ttk.Checkbutton(
+            sync_frame,
+            text="Synchronisation automatique",
+            variable=self.auto_sync_var,
+            command=self.toggle_auto_sync
+        ).pack(padx=5, pady=2)
+        
+        ttk.Label(
+            sync_frame,
+            text="Intervalle de synchronisation (minutes):"
+        ).pack(padx=5, pady=2)
+        
+        self.sync_interval = ttk.Entry(
+            sync_frame,
+            width=10
+        )
+        self.sync_interval.insert(
+            0,
+            str(self.cloud_sync.config['sync_interval'] // 60)
+        )
+        self.sync_interval.pack(padx=5, pady=2)
+        
+        ttk.Button(
+            sync_frame,
+            text="Synchroniser maintenant",
+            command=self.sync_now
+        ).pack(padx=5, pady=5)
+        
+    def setup_onedrive(self):
+        """Configure OneDrive."""
+        client_id = self.onedrive_id.get()
+        client_secret = self.onedrive_secret.get()
+        
+        if not client_id or not client_secret:
+            messagebox.showwarning(
+                "Configuration incomplète",
+                "Veuillez entrer l'ID client et le secret client."
+            )
+            return
+            
+        if self.cloud_sync.setup_onedrive(client_id, client_secret):
+            messagebox.showinfo(
+                "Succès",
+                "OneDrive configuré avec succès!"
+            )
+        else:
+            messagebox.showerror(
+                "Erreur",
+                "Erreur lors de la configuration d'OneDrive."
+            )
+            
+    def setup_gdrive(self):
+        """Configure Google Drive."""
+        client_id = self.gdrive_id.get()
+        client_secret = self.gdrive_secret.get()
+        
+        if not client_id or not client_secret:
+            messagebox.showwarning(
+                "Configuration incomplète",
+                "Veuillez entrer l'ID client et le secret client."
+            )
+            return
+            
+        if self.cloud_sync.setup_gdrive(client_id, client_secret):
+            messagebox.showinfo(
+                "Succès",
+                "Google Drive configuré avec succès!"
+            )
+        else:
+            messagebox.showerror(
+                "Erreur",
+                "Erreur lors de la configuration de Google Drive."
+            )
+            
+    def toggle_auto_sync(self):
+        """Active/désactive la synchronisation automatique."""
+        self.cloud_sync.config['auto_sync'] = self.auto_sync_var.get()
+        self.cloud_sync.save_config()
+        
+    def sync_now(self):
+        """Lance une synchronisation manuelle."""
+        def callback(message):
+            self.log_message(message)
+            
+        self.cloud_sync.sync_to_cloud(
+            self.storage_path,
+            callback=callback
+        )
+        
     def select_files(self):
+        """Ouvre une boîte de dialogue pour sélectionner des fichiers."""
         files = filedialog.askopenfilenames(
             title="Sélectionner les fichiers à horodater",
-            filetypes=[("Tous les fichiers", "*.*")]
+            filetypes=[
+                ("Tous les fichiers", "*.*"),
+                ("Documents PDF", "*.pdf"),
+                ("Images", "*.png *.jpg *.jpeg")
+            ]
         )
-
-        self.selected_files = list(files)
-        self.update_file_list()
-
+        
+        if files:
+            self.selected_files = list(files)
+            self.update_file_list()
+            
+            # Prévisualiser le premier fichier
+            if self.selected_files:
+                self.preview.preview_file(self.selected_files[0])
+                
     def update_file_list(self):
+        """Met à jour l'affichage de la liste des fichiers."""
         self.files_text.delete(1.0, tk.END)
         for file in self.selected_files:
-            self.files_text.insert(tk.END, f"- {os.path.basename(file)}\n")
-
-    def log_message(self, message):
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
-
+            self.files_text.insert(tk.END, f"• {os.path.basename(file)}\n")
+            
     def timestamp_files(self):
+        """Horodate les fichiers sélectionnés."""
         if not self.selected_files:
             messagebox.showwarning(
                 "Aucun fichier",
                 "Veuillez sélectionner au moins un fichier à horodater."
             )
             return
-
+            
         try:
             for file_path in self.selected_files:
-                # Créer les sous-dossiers dans le dossier de stockage
+                # Créer les sous-dossiers
                 timestamp_folder = os.path.join(self.storage_path, "str")
                 blockchain_folder = os.path.join(self.storage_path, "blockchain")
                 
                 for folder in [timestamp_folder, blockchain_folder]:
                     if not os.path.exists(folder):
                         os.makedirs(folder)
-
-                # Utiliser les nouveaux chemins pour le stockage
+                        
+                # Utiliser les nouveaux chemins
                 self.timestamper.storage_path = timestamp_folder
                 self.timestamper.blockchain_path = blockchain_folder
-
+                
                 # Options d'horodatage
                 options = {
-                    'rename': self.rename_var.get(),
+                    'rename': True,
                     'rfc3161': self.rfc3161_var.get(),
                     'blockchain': self.blockchain_var.get()
                 }
-
+                
                 # Horodater le fichier
                 result = self.timestamper.timestamp_file(file_path, options)
                 
@@ -457,49 +556,90 @@ class HorodatageApp:
                     self.stats['certificates_created'] += 1
                 if options['blockchain']:
                     self.stats['blockchain_proofs'] += 1
+                    
+                # Journal
+                self.log_message(
+                    f"✓ {os.path.basename(file_path)} horodaté avec succès"
+                )
                 
-                # Mettre à jour l'affichage des statistiques
-                self.update_stats_display()
-
-                # Ajouter le résultat au journal
-                self.log_text.insert(tk.END, f"✓ {os.path.basename(file_path)} horodaté avec succès\n")
-                self.log_text.see(tk.END)
-
-            # Effacer la liste des fichiers sélectionnés
+                # Synchroniser avec le cloud si activé
+                if self.cloud_sync.config['auto_sync']:
+                    self.cloud_sync.sync_to_cloud(
+                        self.storage_path,
+                        callback=self.log_message
+                    )
+                    
+            # Nettoyer
             self.selected_files.clear()
             self.files_text.delete(1.0, tk.END)
+            self.update_stats_display()
             
             messagebox.showinfo(
                 "Succès",
                 "Tous les fichiers ont été horodatés avec succès!"
             )
-
+            
         except Exception as e:
             messagebox.showerror(
                 "Erreur",
                 f"Une erreur est survenue lors de l'horodatage : {str(e)}"
             )
 
+    def create_menu(self):
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+
+        # Menu Aide
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Aide", menu=help_menu)
+        help_menu.add_command(label="Site Web", command=self.open_website)
+        help_menu.add_separator()
+        help_menu.add_command(label="À propos", command=self.show_about)
+
     def select_document(self):
+        """Ouvre une boîte de dialogue pour sélectionner un document."""
         self.document_path = filedialog.askopenfilename(
             title="Sélectionner le document à vérifier",
-            filetypes=[("Tous les fichiers", "*.*")]
+            filetypes=[
+                ("Tous les fichiers", "*.*"),
+                ("Documents PDF", "*.pdf"),
+                ("Images", "*.png *.jpg *.jpeg"),
+                ("Documents Word", "*.doc *.docx")
+            ]
         )
         if self.document_path:
-            self.doc_label.config(text=os.path.basename(self.document_path))
-            
+            self.doc_label.config(
+                text=os.path.basename(self.document_path)
+            )
+
     def select_certificate(self):
+        """Ouvre une boîte de dialogue pour sélectionner un certificat."""
         self.cert_path = filedialog.askopenfilename(
             title="Sélectionner le certificat ou la preuve",
             filetypes=[
-                ("Tous les certificats", "*.tsr *.blockchain"),
-                ("Certificat RFC3161", "*.tsr"),
-                ("Preuve Blockchain", "*.blockchain")
+                ("Certificats", "*.cert"),
+                ("Preuves blockchain", "*.blockchain")
             ]
         )
         if self.cert_path:
-            self.cert_label.config(text=os.path.basename(self.cert_path))
-            
+            self.cert_label.config(
+                text=os.path.basename(self.cert_path)
+            )
+
+    def update_stats_display(self):
+        """Met à jour l'affichage des statistiques."""
+        stats_text = (
+            f"Fichiers traités : {self.stats['files_processed']}\n"
+            f"Certificats créés : {self.stats['certificates_created']}\n"
+            f"Preuves blockchain : {self.stats['blockchain_proofs']}\n"
+            f"Vérifications : {self.stats['verifications_done']}"
+        )
+        self.stats_label.config(text=stats_text)
+
+    def log_message(self, message):
+        self.log_text.insert(tk.END, f"{message}\n")
+        self.log_text.see(tk.END)
+
     def verify_document(self):
         if not self.document_path or not self.cert_path:
             messagebox.showwarning(
@@ -514,7 +654,7 @@ class HorodatageApp:
                 self.verify_rfc3161()
             elif self.cert_path.endswith('.blockchain'):
                 self.verify_blockchain()
-            
+
             # Mettre à jour les statistiques
             self.stats['verifications_done'] += 1
             self.update_stats_display()
@@ -528,96 +668,108 @@ class HorodatageApp:
     def verify_rfc3161(self):
         try:
             # Vérifier le certificat RFC3161
-            is_valid = self.timestamper.verify_rfc3161(self.document_path, self.cert_path)
-            
+            is_valid = self.timestamper.verify_rfc3161(
+                self.document_path, 
+                self.cert_path
+            )
+
             # Lire les détails du certificat
             with open(self.cert_path, 'r') as f:
                 cert_data = json.load(f)
-                
-            self.result_text.insert(tk.END, "=== Vérification du Certificat RFC3161 ===\n\n")
-            
+
+            # Afficher le résultat
             if is_valid:
-                self.result_text.insert(tk.END, " Le document est authentique!\n\n")
+                result = (
+                    "✅ Document authentique\n\n"
+                    f"Document : {os.path.basename(self.document_path)}\n"
+                    f"Date : {cert_data.get('timestamp', 'Non disponible')}\n"
+                    f"Hash : {cert_data.get('hash', 'Non disponible')}\n"
+                    f"Autorité : {cert_data.get('tsa', 'Non disponible')}"
+                )
+                self.result_text.delete(1.0, tk.END)
+                self.result_text.insert(tk.END, result)
+                self.result_text.tag_add("valid", "1.0", "1.end")
             else:
-                self.result_text.insert(tk.END, " ATTENTION: Le document a été modifié!\n\n")
-                
-            self.result_text.insert(tk.END, f" Date d'horodatage: {cert_data['timestamp']}\n")
-            self.result_text.insert(tk.END, f" Service TSA: {cert_data['tsa_url']}\n")
-            self.result_text.insert(tk.END, f" Hash du document: {cert_data['hash']}\n")
-            
+                self.result_text.delete(1.0, tk.END)
+                self.result_text.insert(
+                    tk.END,
+                    "❌ Document non authentique ou modifié"
+                )
+                self.result_text.tag_add("invalid", "1.0", "1.end")
+
         except Exception as e:
-            raise Exception(f"Erreur lors de la vérification RFC3161: {str(e)}")
-            
+            self.result_text.delete(1.0, tk.END)
+            self.result_text.insert(
+                tk.END,
+                f"Erreur lors de la vérification : {str(e)}"
+            )
+
     def verify_blockchain(self):
         try:
             # Vérifier la preuve blockchain
-            is_valid = self.timestamper.verify_blockchain(self.document_path, self.cert_path)
-            
+            is_valid = self.timestamper.verify_blockchain(
+                self.document_path,
+                self.cert_path
+            )
+
             # Lire les détails de la preuve
             with open(self.cert_path, 'r') as f:
                 proof_data = json.load(f)
-                
-            self.result_text.insert(tk.END, "=== Vérification de la Preuve Blockchain ===\n\n")
-            
+
+            # Afficher le résultat
             if is_valid:
-                self.result_text.insert(tk.END, " Le document est authentique!\n\n")
+                result = (
+                    "✅ Document authentique\n\n"
+                    f"Document : {os.path.basename(self.document_path)}\n"
+                    f"Date : {proof_data.get('timestamp', 'Non disponible')}\n"
+                    f"Hash : {proof_data.get('hash', 'Non disponible')}\n"
+                    f"Transaction : {proof_data.get('txid', 'Non disponible')}"
+                )
+                self.result_text.delete(1.0, tk.END)
+                self.result_text.insert(tk.END, result)
+                self.result_text.tag_add("valid", "1.0", "1.end")
             else:
-                self.result_text.insert(tk.END, " ATTENTION: Le document a été modifié!\n\n")
-                
-            self.result_text.insert(tk.END, f" Date d'horodatage: {proof_data['timestamp']}\n")
-            self.result_text.insert(tk.END, f" Blockchain: {proof_data['blockchain']}\n")
-            self.result_text.insert(tk.END, f" Réseau: {proof_data['network']}\n")
-            self.result_text.insert(tk.END, f" Hash du document: {proof_data['file_hash']}\n")
-            
+                self.result_text.delete(1.0, tk.END)
+                self.result_text.insert(
+                    tk.END,
+                    "❌ Document non authentique ou modifié"
+                )
+                self.result_text.tag_add("invalid", "1.0", "1.end")
+
         except Exception as e:
-            raise Exception(f"Erreur lors de la vérification blockchain: {str(e)}")
+            self.result_text.delete(1.0, tk.END)
+            self.result_text.insert(
+                tk.END,
+                f"Erreur lors de la vérification : {str(e)}"
+            )
 
     def open_website(self, event=None):
-        """Ouvre le site web de la CC Sud-Avesnois"""
-        webbrowser.open("https://cc-sudavesnois.fr")
+        """Ouvre le site web de la CC Sud-Avesnois."""
+        webbrowser.open(self.WEBSITE)
 
     def show_about(self):
-        about_text = f"""Horodatage de Documents v{self.VERSION}
+        """Affiche la boîte de dialogue À propos."""
+        about_text = (
+            f"Horodatage de Documents v{self.VERSION}\n\n"
+            "Application développée pour la CC Sud-Avesnois\n"
+            "permettant d'horodater des documents avec\n"
+            "certification RFC3161 et blockchain.\n\n"
+            " 2024 CC Sud-Avesnois"
+        )
 
-Une application développée pour la CC Sud-Avesnois
-{self.WEBSITE}
-
-Cette application permet d'horodater vos documents avec :
-- Renommage automatique avec horodatage
-- Certification RFC3161
-- Stockage blockchain
-
- 2025 CC Sud-Avesnois - Tous droits réservés"""
-        
         messagebox.showinfo("À propos", about_text)
 
-    def select_storage_path(self):
-        new_path = filedialog.askdirectory(
-            title="Sélectionner le dossier de stockage",
-            initialdir=self.storage_path
-        )
-        if new_path:
-            self.storage_path = new_path
-            self.storage_label.configure(text=self.storage_path)
-            # Créer le dossier s'il n'existe pas
-            if not os.path.exists(self.storage_path):
-                os.makedirs(self.storage_path)
-
-    def update_stats_display(self):
-        """Met à jour l'affichage des statistiques"""
-        stats_data = [
-            ("Fichiers traités", self.stats['files_processed']),
-            ("Certificats créés", self.stats['certificates_created']),
-            ("Preuves blockchain", self.stats['blockchain_proofs']),
-            ("Vérifications", self.stats['verifications_done'])
-        ]
-
-        # Mettre à jour chaque widget de statistique
-        stats_widgets = self.stats_row.winfo_children()
-        for widget, (title, value) in zip(stats_widgets, stats_data):
-            # Trouver le label de valeur (deuxième enfant)
-            value_label = [child for child in widget.winfo_children() if isinstance(child, ttk.Label)][1]
-            value_label.configure(text=str(value))
+    def check_updates(self):
+        """Vérifie si des mises à jour sont disponibles."""
+        try:
+            updater = Updater()
+            if updater.check_for_updates():
+                if messagebox.askyesno(
+                    "Mise à jour disponible",
+                    "Une nouvelle version est disponible. Voulez-vous la télécharger ?"):
+                    updater.download_update()
+        except Exception as e:
+            print(f"Erreur lors de la vérification des mises à jour : {e}")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,13 @@
+"""
+Module de gestion des mises à jour de l'application.
+
+Ce module fournit les fonctionnalités pour :
+- Vérifier la disponibilité des mises à jour
+- Télécharger les nouvelles versions
+- Installer les mises à jour automatiquement
+- Gérer les dialogues de mise à jour
+"""
+
 import requests
 import json
 import os
@@ -7,18 +17,28 @@ import subprocess
 from tkinter import messagebox
 from version import VERSION, compare_versions
 
+
 class Updater:
+    """Gère les mises à jour automatiques de l'application."""
+    
     def __init__(self):
-        # URL du fichier JSON contenant les informations de version
-        # À remplacer par l'URL de votre dépôt GitHub
-        self.version_url = "https://raw.githubusercontent.com/votre-repo/Horodatage/main/version.json"
-        self.download_url = "https://github.com/votre-repo/Horodatage/releases/download/"
+        """Initialise le gestionnaire de mises à jour."""
+        self.version_url = (
+            "https://raw.githubusercontent.com/NumeriqueMediapass/"
+            "Horodatage/main/version.json"
+        )
         self.current_version = VERSION
 
     def check_for_updates(self):
-        """Vérifie si une mise à jour est disponible"""
+        """Vérifie si une mise à jour est disponible.
+        
+        Returns:
+            dict: Informations sur la mise à jour disponible ou None si erreur.
+        """
         try:
             response = requests.get(self.version_url, timeout=5)
+            response.raise_for_status()
+            
             if response.status_code == 200:
                 version_info = response.json()
                 latest_version = version_info['version']
@@ -27,10 +47,10 @@ class Updater:
                     return {
                         'update_available': True,
                         'version': latest_version,
-                        'changes': version_info.get('changes', ''),
-                        'download_url': version_info.get('download_url', '')
+                        'changes': version_info.get('changes', []),
+                        'download_url': version_info.get('download_url', ''),
+                        'required': version_info.get('required', False)
                     }
-            
             return {'update_available': False}
             
         except Exception as e:
@@ -38,71 +58,93 @@ class Updater:
             return {'update_available': False}
 
     def download_update(self, download_url):
-        """Télécharge la mise à jour"""
+        """Télécharge la nouvelle version de l'application.
+        
+        Args:
+            download_url (str): URL de téléchargement de la mise à jour.
+            
+        Returns:
+            str: Chemin vers le fichier téléchargé ou None si erreur.
+        """
         try:
-            response = requests.get(download_url, stream=True)
-            if response.status_code == 200:
-                # Créer un dossier temporaire pour la mise à jour
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.exe') as temp_file:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            temp_file.write(chunk)
-                    return temp_file.name
-            return None
+            # Créer un fichier temporaire avec l'extension .exe
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix='.exe',
+                prefix='horodatage_update_'
+            ) as tmp:
+                # Télécharger avec une barre de progression
+                response = requests.get(download_url, stream=True)
+                response.raise_for_status()
+                
+                # Écrire le fichier par morceaux
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        tmp.write(chunk)
+                
+                return tmp.name
+                
         except Exception as e:
             print(f"Erreur lors du téléchargement : {str(e)}")
             return None
 
-    def install_update(self, update_file):
-        """Installe la mise à jour"""
+    def install_update(self, file_path):
+        """Installe la nouvelle version de l'application.
+        
+        Args:
+            file_path (str): Chemin vers le fichier d'installation.
+            
+        Returns:
+            bool: True si l'installation réussit, False sinon.
+        """
         try:
-            # Créer un script batch pour remplacer l'exécutable
-            batch_path = os.path.join(tempfile.gettempdir(), 'update.bat')
-            current_exe = sys.executable
-            
-            with open(batch_path, 'w') as batch:
-                batch.write('@echo off\n')
-                batch.write('timeout /t 2 /nobreak > nul\n')  # Attendre que l'application se ferme
-                batch.write(f'copy /Y "{update_file}" "{current_exe}"\n')
-                batch.write(f'start "" "{current_exe}"\n')
-                batch.write(f'del "%~f0"\n')  # Auto-suppression du batch
-            
-            # Lancer le script batch et fermer l'application
-            subprocess.Popen(['cmd', '/c', batch_path], shell=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            if not os.path.exists(file_path):
+                return False
+
+            if sys.platform == 'win32':
+                # Lancer le nouvel exécutable
+                subprocess.Popen([file_path])
+                # Quitter l'application actuelle
+                sys.exit(0)
+                
             return True
             
         except Exception as e:
             print(f"Erreur lors de l'installation : {str(e)}")
             return False
 
-    def propose_update(self):
-        """Vérifie et propose la mise à jour à l'utilisateur"""
-        update_info = self.check_for_updates()
+    def update_available_dialog(self, version_info):
+        """Affiche une boîte de dialogue pour la mise à jour.
         
-        if update_info['update_available']:
-            message = f"Une nouvelle version ({update_info['version']}) est disponible !\n\n"
-            if update_info['changes']:
-                message += f"Changements :\n{update_info['changes']}\n\n"
-            message += "Voulez-vous mettre à jour l'application ?"
+        Args:
+            version_info (dict): Informations sur la mise à jour.
             
-            if messagebox.askyesno("Mise à jour disponible", message):
-                # Télécharger la mise à jour
-                update_file = self.download_update(update_info['download_url'])
-                if update_file:
-                    # Installer la mise à jour
-                    if self.install_update(update_file):
-                        messagebox.showinfo(
-                            "Mise à jour",
-                            "La mise à jour va être installée. L'application va redémarrer."
-                        )
-                        sys.exit(0)
-                    else:
-                        messagebox.showerror(
-                            "Erreur",
-                            "Impossible d'installer la mise à jour."
-                        )
-                else:
-                    messagebox.showerror(
-                        "Erreur",
-                        "Impossible de télécharger la mise à jour."
-                    )
+        Returns:
+            bool: True si l'utilisateur accepte la mise à jour, False sinon.
+        """
+        # Préparer le message
+        changes = "\n".join(
+            f"• {change}" for change in version_info.get('changes', [])
+        )
+        
+        message = (
+            f"Une nouvelle version {version_info['version']} est disponible !\n\n"
+            f"Changements :\n{changes}\n\n"
+            "Voulez-vous installer cette mise à jour ?"
+        )
+
+        # Si la mise à jour est obligatoire
+        if version_info.get('required', False):
+            messagebox.showwarning(
+                "Mise à jour requise",
+                "Cette mise à jour est obligatoire pour continuer à utiliser "
+                "l'application.\n\nL'installation va commencer..."
+            )
+            return True
+
+        # Sinon, demander confirmation
+        return messagebox.askyesno(
+            "Mise à jour disponible",
+            message,
+            icon=messagebox.INFO
+        )

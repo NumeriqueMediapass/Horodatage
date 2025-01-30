@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -21,47 +20,31 @@ wheels/
 .installed.cfg
 *.egg
 
-# PyInstaller
-*.manifest
-*.spec
-build/
-dist/
+# Virtual Environment
+venv/
+env/
+ENV/
 
-# Dossiers de développement
+# IDE
 .idea/
 .vscode/
 *.swp
-.env
-.venv
-venv/
-ENV/
+*.swo
 
-# Fichiers Windows
+# Application specific
+Horodatage/
+*.cert
+*.timestamp
+cloud_config.json
+credentials.json
+token.pickle
+.tutorial_done
+.env
+
+# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# Fichiers de release
-release-*/
-*.zip
-*.exe
-
-# Fichiers de certificats et clés
-*.pem
-*.key
-*.crt
-*.cer
-*.p12
-*.pfx
-
-# Fichiers temporaires
-*.tmp
-*.bak
-*.swp
-*.tsr
-*~
 
 # Logs
 *.log

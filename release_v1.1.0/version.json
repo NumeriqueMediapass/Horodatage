@@ -1,0 +1,16 @@
+{
+    "version": "1.1.0",
+    "release_date": "2025-01-30",
+    "changes": [
+        "✨ Amélioration de l'interface utilisateur",
+        "🖼️ Logo interactif avec effets de survol",
+        "🔗 Logo cliquable vers le site web",
+        "💡 Infobulles informatives",
+        "📊 Correction de l'affichage des statistiques",
+        "🔄 Système de mise à jour automatique",
+        "🎨 Nouveau thème moderne et cohérent"
+    ],
+    "download_url": "https://github.com/NumeriqueMediapass/Horodatage/releases/download/v1.1.0/Horodatage.exe",
+    "min_version": "1.0.0",
+    "required": false
+}

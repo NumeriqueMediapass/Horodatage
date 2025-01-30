@@ -11,6 +11,84 @@ Ce document explique comment mettre à jour l'application Horodatage et génére
    pip install pyinstaller
    ```
 
+## Configuration du Système de Mise à Jour
+
+Le système de mise à jour automatique est en place mais nécessite une configuration :
+
+1. Configuration du dépôt GitHub :
+   - Créez un dépôt GitHub pour héberger les mises à jour
+   - Le dépôt doit être public pour permettre l'accès au fichier version.json
+
+2. Configuration de version.json :
+   ```json
+   {
+       "version": "1.1.0",
+       "changes": [
+           "Liste des changements",
+           "Un changement par ligne"
+       ],
+       "download_url": "URL_VERS_EXECUTABLE"
+   }
+   ```
+
+3. Mise en place des releases :
+   - Créez une release GitHub pour chaque version
+   - Uploadez l'exécutable dans la release
+   - Mettez à jour l'URL dans version.json
+
+4. Test du système :
+   - Vérifiez que version.json est accessible
+   - Testez le téléchargement depuis l'URL
+   - Validez le processus complet de mise à jour
+
+### Notes Importantes
+
+- L'URL dans version.json doit pointer vers un fichier .exe
+- Le fichier version.json doit être à la racine du dépôt
+- Les versions doivent suivre le format x.x.x
+- L'URL de téléchargement doit être une URL directe
+
+## Procédure de Mise à Jour de l'Exécutable
+
+### 1. Sauvegarde
+
+1. Faites une copie de l'exécutable actuel :
+   - Renommez `Horodatage.exe` en `Horodatage_old.exe`
+   - Gardez-le dans un dossier de sauvegarde
+
+2. Sauvegardez les données importantes :
+   - Dossier `Horodatage` contenant les certificats
+   - Fichiers de configuration personnalisés
+
+### 2. Installation de la Nouvelle Version
+
+1. Téléchargez le nouvel exécutable depuis GitHub :
+   - Allez sur la page des releases
+   - Téléchargez la dernière version de `Horodatage.exe`
+
+2. Installation :
+   - Fermez l'ancienne version si elle est en cours d'exécution
+   - Placez le nouvel exécutable à l'emplacement souhaité
+   - Copiez le dossier `Horodatage` sauvegardé à côté du nouvel exécutable
+
+3. Premier lancement :
+   - Double-cliquez sur le nouvel exécutable
+   - Vérifiez que la version affichée est la bonne
+   - Testez que vos anciens certificats sont toujours accessibles
+
+### 3. En Cas de Problème
+
+1. Si la nouvelle version ne fonctionne pas :
+   - Fermez l'application
+   - Restaurez `Horodatage_old.exe`
+   - Renommez-le en `Horodatage.exe`
+   - Signalez le problème sur GitHub
+
+2. Problèmes courants :
+   - Erreur au démarrage : Vérifiez que tous les fichiers sont au bon endroit
+   - Certificats manquants : Vérifiez le dossier `Horodatage`
+   - Erreur de mise à jour : Vérifiez votre connexion internet
+
 ## Étapes de Mise à Jour
 
 ### 1. Modification du Code Source
@@ -72,9 +150,13 @@ Lorsque vous changez la version de l'application, mettez à jour les fichiers su
    cd chemin/vers/Horodatage
    ```
 
-2. Lancez PyInstaller avec le fichier spec :
+2. Lancez PyInstaller pour créer l'exécutable :
    ```bash
-   pyinstaller --clean horodatage.spec
+   pyinstaller --clean --onefile --windowed ^
+               --icon=assets/icon.ico ^
+               --add-data "assets;assets" ^
+               --name Horodatage ^
+               main.py
    ```
 
 3. L'exécutable sera généré dans le dossier `dist`
@@ -99,21 +181,29 @@ Lorsque vous changez la version de l'application, mettez à jour les fichiers su
    - Description : Liste des changements
    - Fichiers : Horodatage.exe
 
-2. Mettez à jour version.json sur GitHub :
-   - Nouvelle version
-   - Liste des changements
-   - URL de téléchargement de la release
+2. Mettez à jour `version.json` sur GitHub avec :
+   - La nouvelle version
+   - L'URL de téléchargement de la release
+   - La liste des changements
 
-3. Testez le système de mise à jour :
-   - Installez une ancienne version
-   - Vérifiez que la mise à jour est proposée
-   - Testez le processus de mise à jour
+### 6. Documentation
 
-### 6. Distribution
+1. Mettez à jour la documentation si nécessaire :
+   - `README.md` : Instructions d'installation et d'utilisation
+   - `MAJ.md` : Procédure de mise à jour
+   - Commentaires dans le code
 
-Une fois les tests validés, vous pouvez distribuer :
-- L'exécutable `dist/Horodatage.exe`
-- Le dossier `assets` si vous l'avez modifié
+2. Ajoutez les changements importants dans un fichier `CHANGELOG.md`
+
+### 7. Sauvegarde
+
+1. Faites une sauvegarde du projet :
+   - Code source
+   - Exécutable
+   - Documentation
+   - Assets (images, icônes)
+
+2. Créez une archive du projet complet
 
 ## Structure des Fichiers
 

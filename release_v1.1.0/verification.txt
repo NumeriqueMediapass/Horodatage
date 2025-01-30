@@ -1,0 +1,4 @@
+Application Horodatage v1.1.0
+Éditeur : CC Sud-Avesnois
+Site web : https://cc-sudavesnois.fr
+SHA-256 : [À remplir après la génération]

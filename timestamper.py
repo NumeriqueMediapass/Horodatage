@@ -1,3 +1,13 @@
+"""
+Module de gestion de l'horodatage des documents.
+
+Ce module fournit les fonctionnalités pour :
+- Horodater des documents avec certification RFC3161
+- Stocker des preuves sur la blockchain Ethereum
+- Vérifier l'authenticité des documents horodatés
+- Gérer le stockage des certificats et preuves
+"""
+
 import hashlib
 import requests
 import json
@@ -5,16 +15,53 @@ from datetime import datetime
 import pytz
 import os
 import shutil
+import sys
+
 
 class TimeStamper:
-    def __init__(self, storage_path=None, blockchain_path=None, tsa_url=None, ethereum_node_url=None):
-        self.storage_path = storage_path
-        self.blockchain_path = blockchain_path
-        self.tsa_url = tsa_url or "http://timestamp.digicert.com"
-        self.ethereum_node_url = ethereum_node_url or "https://mainnet.infura.io/v3/YOUR-PROJECT-ID"
+    """Gère l'horodatage et la vérification des documents."""
     
+    def __init__(self, storage_path=None, blockchain_path=None, tsa_url=None,
+                 ethereum_node_url=None):
+        """Initialise le gestionnaire d'horodatage.
+        
+        Args:
+            storage_path (str, optional): Chemin pour stocker les certificats.
+            blockchain_path (str, optional): Chemin pour les preuves blockchain.
+            tsa_url (str, optional): URL du service d'horodatage RFC3161.
+            ethereum_node_url (str, optional): URL du nœud Ethereum.
+        """
+        # Obtenir le chemin de base
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+            
+        # Configurer les chemins de stockage
+        self.storage_path = storage_path or os.path.join(base_path, "str")
+        self.blockchain_path = blockchain_path or os.path.join(
+            base_path, "blockchain"
+        )
+        
+        # Créer les dossiers s'ils n'existent pas
+        os.makedirs(self.storage_path, exist_ok=True)
+        os.makedirs(self.blockchain_path, exist_ok=True)
+        
+        # URLs des services
+        self.tsa_url = tsa_url or "http://timestamp.digicert.com"
+        self.ethereum_node_url = (
+            ethereum_node_url or 
+            "https://mainnet.infura.io/v3/YOUR-PROJECT-ID"
+        )
+
     def calculate_hash(self, file_path):
-        """Calcule le hash SHA256 d'un fichier"""
+        """Calcule le hash SHA256 d'un fichier.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à hasher.
+            
+        Returns:
+            bytes: Le hash SHA256 du fichier.
+        """
         sha256_hash = hashlib.sha256()
         with open(file_path, "rb") as f:
             for byte_block in iter(lambda: f.read(4096), b""):
@@ -22,7 +69,19 @@ class TimeStamper:
         return sha256_hash.digest()
 
     def timestamp_file(self, file_path, options):
-        """Horodate un fichier avec les options spécifiées"""
+        """Horodate un fichier avec les options spécifiées.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à horodater.
+            options (dict): Options d'horodatage (RFC3161, blockchain).
+            
+        Returns:
+            dict: Informations sur l'horodatage (timestamp, fichier original,
+                  fichier horodaté, certificat RFC3161, preuve blockchain).
+            
+        Raises:
+            Exception: Si une erreur survient pendant l'horodatage.
+        """
         try:
             # Obtenir le timestamp actuel
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -64,7 +123,18 @@ class TimeStamper:
             raise Exception(f"Erreur lors de l'horodatage : {str(e)}")
 
     def get_rfc3161_timestamp(self, file_path, options={}):
-        """Obtient un certificat d'horodatage RFC3161"""
+        """Obtient un certificat d'horodatage RFC3161.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à certifier.
+            options (dict, optional): Options supplémentaires.
+            
+        Returns:
+            dict: Informations sur le certificat RFC3161.
+            
+        Raises:
+            Exception: Si une erreur survient pendant l'obtention du certificat.
+        """
         try:
             file_hash = self.calculate_hash(file_path)
             
@@ -92,7 +162,18 @@ class TimeStamper:
             raise Exception(f"Erreur lors de l'horodatage RFC3161: {str(e)}")
 
     def store_in_blockchain(self, file_path, options={}):
-        """Simule le stockage du hash du fichier dans la blockchain"""
+        """Simule le stockage du hash du fichier dans la blockchain.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à stocker.
+            options (dict, optional): Options supplémentaires.
+            
+        Returns:
+            dict: Informations sur la preuve blockchain.
+            
+        Raises:
+            Exception: Si une erreur survient pendant le stockage.
+        """
         try:
             file_hash = self.calculate_hash(file_path)
             
@@ -120,7 +201,18 @@ class TimeStamper:
             raise Exception(f"Erreur lors du stockage blockchain: {str(e)}")
 
     def verify_rfc3161(self, file_path, cert_path):
-        """Vérifie un certificat d'horodatage RFC3161"""
+        """Vérifie un certificat d'horodatage RFC3161.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à vérifier.
+            cert_path (str): Chemin vers le certificat RFC3161.
+            
+        Returns:
+            bool: True si le certificat est valide, False sinon.
+            
+        Raises:
+            Exception: Si une erreur survient pendant la vérification.
+        """
         try:
             current_hash = self.calculate_hash(file_path).hex()
             
@@ -133,7 +225,18 @@ class TimeStamper:
             raise Exception(f"Erreur lors de la vérification RFC3161: {str(e)}")
 
     def verify_blockchain(self, file_path, proof_path):
-        """Vérifie une preuve blockchain"""
+        """Vérifie une preuve blockchain.
+        
+        Args:
+            file_path (str): Chemin vers le fichier à vérifier.
+            proof_path (str): Chemin vers la preuve blockchain.
+            
+        Returns:
+            bool: True si la preuve est valide, False sinon.
+            
+        Raises:
+            Exception: Si une erreur survient pendant la vérification.
+        """
         try:
             current_hash = self.calculate_hash(file_path).hex()
             

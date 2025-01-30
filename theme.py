@@ -1,8 +1,20 @@
+"""
+Module de gestion du thème moderne de l'application.
+
+Ce module définit l'apparence visuelle de l'application avec :
+- Une palette de couleurs moderne et cohérente
+- Des styles pour les widgets Tkinter
+- Des constantes pour les polices et les dimensions
+- Des fonctions utilitaires pour le style
+"""
+
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
 class ModernTheme:
+    """Définit le thème moderne de l'application."""
+    
     # Couleurs principales
     BACKGROUND = "#1A1B1E"  # Fond sombre
     CARD_BG = "#25262B"     # Fond des cartes légèrement plus clair
@@ -32,7 +44,11 @@ class ModernTheme:
 
     @classmethod
     def setup_theme(cls):
-        # Style général
+        """Configure le thème pour tous les widgets de l'application.
+        
+        Cette méthode doit être appelée au démarrage de l'application pour
+        appliquer le style moderne à tous les widgets.
+        """
         style = ttk.Style()
         style.theme_use('clam')  # Base theme
         

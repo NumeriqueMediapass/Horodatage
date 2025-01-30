@@ -3,4 +3,14 @@ requests>=2.31.0
 pyOpenSSL==23.3.0
 python-tsp==0.5.0  # Pour RFC3161
 web3==6.11.1  # Pour l'interaction avec la blockchain Ethereum
-Pillow>=10.2.0  # Pour le support des images
+Pillow==10.2.0  # Pour le support des images
+
+# Prévisualisation des documents
+PyMuPDF==1.23.8
+
+# Synchronisation cloud
+O365==2.0.26
+pydrive2==1.17.0
+google-api-python-client==2.118.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
